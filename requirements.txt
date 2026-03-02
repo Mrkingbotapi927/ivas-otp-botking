@@ -1,8 +1,5 @@
-pyTelegramBotAPI
-psutil
-requests
-python-dateutil
-playwright
 playwright==1.58.0
 pyTelegramBotAPI==4.31.0
 requests
+python-dateutil
+psutil
