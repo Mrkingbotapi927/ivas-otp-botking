@@ -6,9 +6,7 @@ nixPkgs = [
   "nss",
   "nspr",
   "atk",
-  "atk-bridge",
   "cups",
-  "drm",
   "dbus",
   "at-spi2-atk",
   "xkbcommon",
@@ -16,13 +14,7 @@ nixPkgs = [
   "pango",
   "cairo",
   "expat",
-  "libxkbcommon",
-  "libX11",
-  "libXcomposite",
-  "libXdamage",
-  "libXext",
-  "libXfixes",
-  "libXrandr",
+  "libdrm",
   "mesa"
 ]
 
