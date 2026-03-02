@@ -13,7 +13,7 @@ SUPER_OWNER_ID = 8382316368
 
 IVAS_EMAIL = "iamalisindhi1122@gmail.com"
 IVAS_PASSWORD = "Shoaibali@123D..king"
-IVAS_URL = "https://ivas.tempnum.qzz.io/portal/live/my_sms"
+IVAS_URL = "https://ivas.tempnum.qzz.io"
 
 bot = telebot.TeleBot(API_TOKEN)
 
@@ -57,7 +57,7 @@ def fetch_ivas_numbers(service=None):
 
             # open SMS page
             try:
-                page.goto(f"{IVAS_URL}/portal/sms", timeout=60000)
+                page.goto(f"{IVAS_URL}/portal/sms/live/my_sms/numbers/portal/sms/received", timeout=60000)
                 page.wait_for_timeout(3000)
             except:
                 pass
@@ -141,7 +141,7 @@ def show_numbers(c):
     nums = fetch_ivas_numbers()
 
     if not nums:
-        bot.edit_message_text("❌ No active numbers found",
+        bot.edit_message_text("not available Pakistan range ",
                               c.message.chat.id,
                               msg.message_id)
         return
