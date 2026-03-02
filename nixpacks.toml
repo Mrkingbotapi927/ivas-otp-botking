@@ -6,23 +6,22 @@ nixPkgs = [
   "nss",
   "nspr",
   "atk",
+  "atk-bridge",
   "cups",
   "dbus",
-  "at-spi2-atk",
+  "at-spi2-core",
   "xkbcommon",
   "gtk3",
   "pango",
   "cairo",
   "expat",
   "libdrm",
-  "mesa"
+  "mesa",
+  "libxshmfence"
 ]
 
-[phases.install]
-cmds = [
-  "pip install -r requirements.txt",
-  "python -m playwright install chromium"
-]
+[variables]
+PLAYWRIGHT_BROWSERS_PATH = "0"
 
 [start]
-cmd = "python bot.py"
+cmd = "bash -c 'python -m playwright install chromium && python bot.py'"
