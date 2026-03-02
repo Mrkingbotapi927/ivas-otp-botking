@@ -26,8 +26,11 @@ nixPkgs = [
   "mesa"
 ]
 
-[variables]
-PLAYWRIGHT_BROWSERS_PATH="0"
+[phases.install]
+cmds = [
+  "pip install -r requirements.txt",
+  "python -m playwright install chromium"
+]
 
 [start]
-cmd = "bash -c 'python -m playwright install chromium && python bot.py'"
+cmd = "python bot.py"
