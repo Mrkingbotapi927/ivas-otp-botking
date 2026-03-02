@@ -1,27 +1,14 @@
 [phases.setup]
-nixPkgs = [
-  "python311",
-  "chromium",
-  "glib",
-  "nss",
-  "nspr",
-  "atk",
-  "atk-bridge",
-  "cups",
-  "dbus",
-  "at-spi2-core",
-  "xkbcommon",
-  "gtk3",
-  "pango",
-  "cairo",
-  "expat",
-  "libdrm",
-  "mesa",
-  "libxshmfence"
-]
+nixPkgs = ["python311"]
 
 [variables]
 PLAYWRIGHT_BROWSERS_PATH = "0"
 
+[phases.install]
+cmds = [
+  "pip install -r requirements.txt",
+  "python -m playwright install --with-deps chromium"
+]
+
 [start]
-cmd = "bash -c 'python -m playwright install chromium && python bot.py'"
+cmd = "python bot.py"
