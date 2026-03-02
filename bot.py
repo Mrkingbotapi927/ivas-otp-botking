@@ -40,6 +40,7 @@ def extract_otp(text):
 # ================= IVAS FETCH =================
 def fetch_ivas_numbers(service=None):
     numbers = []
+
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -47,29 +48,30 @@ def fetch_ivas_numbers(service=None):
                 args=["--no-sandbox", "--disable-dev-shm-usage"]
             )
             page = browser.new_page()
-            page.goto(IVAS_URL, timeout=60000)
 
-            # login
+            # 🔐 login
+            page.goto(IVAS_URL, timeout=60000)
             page.fill('input[type="email"]', IVAS_EMAIL)
             page.fill('input[type="password"]', IVAS_PASSWORD)
             page.click('button[type="submit"]')
             page.wait_for_load_state("networkidle")
 
-            # open SMS page
-            try:
-                page.goto(f"{IVAS_URL}/portal/test_numbers", timeout=60000)
-                page.wait_for_timeout(5000)
-            except:
-                pass
+            # ✅ CORRECT PAGE
+            page.goto(f"{IVAS_URL}/portal/numbers", timeout=60000)
 
-            body = page.locator("body").inner_text()
-            found = re.findall(r'\+?\d{9,15}', body)
+            # wait table load
+            page.wait_for_selector("table tbody tr", timeout=60000)
 
-            seen = set()
-            for num in found:
-                if num not in seen:
-                    seen.add(num)
-                    numbers.append(num)
+            rows = page.locator("table tbody tr").all()
+            print("ROWS FOUND:", len(rows))
+
+            for r in rows[:20]:
+                try:
+                    txt = r.inner_text().strip()
+                    if txt:
+                        numbers.append(txt)
+                except:
+                    pass
 
             browser.close()
 
@@ -123,7 +125,7 @@ def ivas_watcher():
 # ================= HANDLERS =================
 @bot.message_handler(commands=['start'])
 def start_cmd(m):
-    bot.send_message(m.chat.id, "✨ OTP Dashboard is ready", reply_markup=main_kb)
+    bot.send_message(m.chat.id, "✨ King 👑 OTP Dashboard is ready", reply_markup=main_kb)
 
 @bot.message_handler(func=lambda m: m.text == "🚀 Get Number")
 def get_number(m):
