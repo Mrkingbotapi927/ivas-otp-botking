@@ -13,7 +13,7 @@ SUPER_OWNER_ID = 8382316368
 
 IVAS_EMAIL = "iamalisindhi1122@gmail.com"
 IVAS_PASSWORD = "Shoaibali@123D..king"
-IVAS_URL = "https://ivas.tempnum.qzz.io/portal"
+IVAS_URL = "https://ivas.tempnum.qzz.io/portal/live/my_sms"
 
 bot = telebot.TeleBot(API_TOKEN)
 
