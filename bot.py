@@ -57,8 +57,8 @@ def fetch_ivas_numbers(service=None):
 
             # open SMS page
             try:
-                page.goto(f"{IVAS_URL}/portal/sms/live/my_sms/numbers/portal/sms/received", timeout=60000)
-                page.wait_for_timeout(3000)
+                page.goto(f"{IVAS_URL}/portal/test_numbers", timeout=60000)
+                page.wait_for_timeout(5000)
             except:
                 pass
 
