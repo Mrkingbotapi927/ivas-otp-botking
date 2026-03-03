@@ -1,20 +1,43 @@
-import os
+
 import re
-import asyncio
 import requests
-from telegram import ReplyKeyboardMarkup, KeyboardButton, Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
+from urllib.parse import urljoin
+import telebot
+from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 
-BOT_TOKEN = os.getenv("8521079986:AAGBGaW21GlBOTTbvjnZSlp78_bvIVn5RTQ")
-IVAS_EMAIL = os.getenv("iamalisindhi1122@gmail.com")
-IVAS_PASSWORD = os.getenv("Shoaibali@123D..king")
+# ================= CONFIG =================
+BOT_TOKEN = "8521079986:AAGBGaW21GlBOTTbvjnZSlp78_bvIVn5RTQ"
+IVAS_URL = "https://ivas.tempnum.qzz.io"
+IVAS_EMAIL = "iamalisindhi1122@gmail.com"
+IVAS_PASSWORD = "Shoaibali@123D..king"
 
+bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
+user_sessions = {}
+
+# ================= LOGIN SESSION =================
+def get_panel_session():
+    session = requests.Session()
+    try:
+        login_url = urljoin(IVAS_URL, "/login")
+        r = session.get(login_url, timeout=30)
+
+        m = re.search(r'name="_token" value="([^"]+)"', r.text)
+        if not m:
+            print("CSRF not found")
+            return None
+        token = m.group(1)
+
+        payload = {
+            "_token": token,
+            "email": IVAS_EMAIL,
+            "password": IVAS_PASSWORD
+        }
+
+        session.post(login_url, data=payload, timeout=30)
+        return session
+    except Exception as e:
+        print("Login error:", e)
+        return None
 # =============================
 # Helpers
 # =============================
