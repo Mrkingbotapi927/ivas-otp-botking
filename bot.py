@@ -40,15 +40,28 @@ def get_panel_session():
         return None
 
 # ================= FETCH NUMBERS =================
-def fetch_numbers(session):
-    try:
-        url = urljoin(IVAS_URL, "/portal/numbers")
-        r = session.get(url, timeout=30)
-        nums = re.findall(r"\+?\d{6,15}", r.text)
-        return list(dict.fromkeys(nums))
-    except Exception as e:
-        print("Fetch numbers error:", e)
-        return []
+rows = page.query_selector_all("table tbody tr")
+
+numbers_list = []
+
+for row in rows:
+    cols = row.query_selector_all("td")
+
+    if len(cols) < 3:
+        continue
+
+    # ✅ correct columns
+    number = cols[1].inner_text().strip()
+    range_name = cols[2].inner_text().strip()
+
+    # ✅ clean number
+    import re
+    number = re.sub(r"\D", "", number)
+
+    numbers_list.append({
+        "country": range_name,
+        "number": number
+    })
 
 # ================= FETCH OTP =================
 def fetch_otp(session, number):
