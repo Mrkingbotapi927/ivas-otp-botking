@@ -64,7 +64,10 @@ def fetch_otp(session, number):
 # ================= UI =================
 def main_menu():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("🚀 Get Number")
+
+    kb.row("🚀 Get Number")
+    kb.row("🔄 Refresh Numbers", "📊 My Stats")
+
     return kb
 
 @bot.message_handler(commands=["start"])
@@ -73,6 +76,9 @@ def start(msg):
 
 @bot.message_handler(func=lambda m: m.text == "🚀 Get Number")
 def get_number(msg):
+@bot.message_handler(func=lambda m: m.text == "🔄 Refresh Numbers")
+def refresh_numbers(msg):
+    get_number(msg)
     bot.send_message(msg.chat.id, "🔄 Fetching numbers...")
 
     session = get_panel_session()
@@ -87,9 +93,13 @@ def get_number(msg):
 
     user_sessions[msg.chat.id] = {"session": session}
 
-    kb = InlineKeyboardMarkup()
-    for n in numbers[:12]:
-        kb.add(InlineKeyboardButton(n, callback_data=f"num|{n}"))
+    kb = InlineKeyboardMarkup(row_width=2)
+buttons = []
+
+for n in numbers[:12]:
+    buttons.append(InlineKeyboardButton(n, callback_data=f"num|{n}"))
+
+kb.add(*buttons)
 
     bot.send_message(msg.chat.id, "📱 Select Number", reply_markup=kb)
 
