@@ -1,144 +1,232 @@
+=========================================
 
-import re
-import requests
-from urllib.parse import urljoin
-import telebot
-from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+IVAS Dynamic OTP Bot (Auto Country)
 
-# ================= CONFIG =================
-BOT_TOKEN = "8521079986:AAGBGaW21GlBOTTbvjnZSlp78_bvIVn5RTQ"
-IVAS_URL = "https://ivas.tempnum.qzz.io"
-IVAS_EMAIL = "iamalisindhi1122@gmail.com"
-IVAS_PASSWORD = "Shoaibali@123D..king"
+=========================================
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
-user_sessions = {}
+Features:
 
-# ================= LOGIN SESSION =================
-def get_panel_session():
+- Auto fetch numbers from IVAS panel
+
+- Dynamic country keyboard
+
+- Clean country names
+
+- Works on Railway
+
+=========================================
+
+import os import re import asyncio import requests from collections import defaultdict
+
+from telegram import ReplyKeyboardMarkup, KeyboardButton, Update from telegram.ext import ( Application, CommandHandler, MessageHandler, ContextTypes, filters, )
+
+BOT_TOKEN = os.getenv("8521079986:AAGBGaW21GlBOTTbvjnZSlp78_bvIVn5RTQ") IVAS_EMAIL = os.getenv("iamalisindhi1122@gmail.com") IVAS_PASSWORD = os.getenv("Shoaibali@123D..king")
+
+=============================
+
+Helpers
+
+=============================
+
+def clean_country(name: str) -> str: """Remove trailing numeric codes from IVAS country.""" if not name: return "" return re.sub(r"\s+\d+$", "", name).strip()
+
+def extract_countries(rows): countries = set() for r in rows: c = r.get("country", "").strip() if c: countries.add(c) return sorted(list(countries))
+
+def build_country_keyboard(countries): keyboard = [] row = []
+
+for c in countries:
+    row.append(KeyboardButton(c))
+    if len(row) == 2:
+        keyboard.append(row)
+        row = []
+
+if row:
+    keyboard.append(row)
+
+keyboard.append([KeyboardButton("🔙 Back")])
+
+return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+=============================
+
+IVAS FETCH (HTTP VERSION)
+
+=============================
+
+def fetch_numbers_from_ivas(): """ Replace URLs below with your real IVAS endpoints if different. This function returns list of: { country: str, number: str } """
+
+try:
     session = requests.Session()
-    try:
-        login_url = urljoin(IVAS_URL, "/login")
-        r = session.get(login_url, timeout=30)
 
-        m = re.search(r'name="_token" value="([^"]+)"', r.text)
-        if not m:
-            print("CSRF not found")
-            return None
-        token = m.group(1)
-
-        payload = {
-            "_token": token,
-            "email": IVAS_EMAIL,
-            "password": IVAS_PASSWORD
-        }
-
-        session.post(login_url, data=payload, timeout=30)
-        return session
-    except Exception as e:
-        print("Login error:", e)
-        return None
-
-# ================= FETCH NUMBERS =================
-rows = page.query_selector_all("table tbody tr")
-
-numbers_list = []
-
-for row in rows:
-    cols = row.query_selector_all("td")
-
-    if len(cols) < 3:
-        continue
-
-    # ✅ correct columns
-    number = cols[1].inner_text().strip()
-    range_name = cols[2].inner_text().strip()
-
-    # ✅ clean number
-    import re
-    number = re.sub(r"\D", "", number)
-
-    numbers_list.append({
-        "country": range_name,
-        "number": number
-    })
-
-# ================= FETCH OTP =================
-def fetch_otp(session, number):
-    try:
-        url = urljoin(IVAS_URL, "/portal/sms/received")
-        r = session.get(url, timeout=30)
-        if number in r.text:
-            return r.text[:1000]
-    except Exception as e:
-        print("OTP fetch error:", e)
-    return None
-
-# ================= UI =================
-def main_menu():
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("🚀 Get Number")
-    return kb
-
-@bot.message_handler(commands=["start"])
-def start(msg):
-    bot.send_message(msg.chat.id, "✨ OTP Dashboard Ready", reply_markup=main_menu())
-
-@bot.message_handler(func=lambda m: m.text == "🚀 Get Number")
-def get_number(msg):
-    bot.send_message(msg.chat.id, "🔄 Fetching numbers...")
-
-    session = get_panel_session()
-    if not session:
-        bot.send_message(msg.chat.id, "❌ Login failed")
-        return
-
-    numbers = fetch_numbers(session)
-    if not numbers:
-        bot.send_message(msg.chat.id, "❌ No active numbers found")
-        return
-
-    user_sessions[msg.chat.id] = {"session": session}
-
-    kb = InlineKeyboardMarkup()
-    for n in numbers[:12]:
-        kb.add(InlineKeyboardButton(n, callback_data=f"num|{n}"))
-
-    bot.send_message(msg.chat.id, "📱 Select Number", reply_markup=kb)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("num|"))
-def select_number(call):
-    number = call.data.split("|")[1]
-    user_sessions.setdefault(call.message.chat.id, {})["number"] = number
-
-    kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton("📩 GET OTP CODE", callback_data="getotp"))
-
-    bot.edit_message_text(
-        f"✅ Selected: <code>{number}</code>",
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=kb
+    # -------- LOGIN --------
+    login_url = "https://portal.ivasms.com/login"
+    session.post(
+        login_url,
+        data={"email": IVAS_EMAIL, "password": IVAS_PASSWORD},
+        timeout=30,
     )
 
-@bot.callback_query_handler(func=lambda c: c.data == "getotp")
-def get_otp(call):
-    data = user_sessions.get(call.message.chat.id)
-    if not data:
-        bot.answer_callback_query(call.id, "No session")
+    # -------- FETCH NUMBERS --------
+    numbers_url = "https://portal.ivasms.com/test-system"
+    resp = session.get(numbers_url, timeout=30)
+    html = resp.text
+
+    # ===== SIMPLE PARSER =====
+    # NOTE: adjust regex if IVAS HTML changes
+
+    pattern = re.compile(
+        r"<tr>.*?<td>(.*?)</td>.*?<td>(\d+)</td>", re.S
+    )
+
+    rows = []
+    for match in pattern.findall(html):
+        raw_country, number = match
+
+        country = clean_country(raw_country)
+
+        rows.append(
+            {
+                "country": country,
+                "number": number,
+            }
+        )
+
+    return rows
+
+except Exception as e:
+    print("IVAS fetch error:", e)
+    return []
+
+=============================
+
+Telegram Handlers
+
+=============================
+
+MAIN_KEYBOARD = ReplyKeyboardMarkup( [ [KeyboardButton("🚀 Get Number")], [KeyboardButton("⚙️ Number Count"), KeyboardButton("📈 My Stats")], ], resize_keyboard=True, )
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE): context.user_data["count"] = context.user_data.get("count", 2)
+
+await update.message.reply_text(
+    "✨ OTP Dashboard is ready\n"
+    "🚀 Get Number: fetch fresh numbers\n"
+    "⚙️ Number Count: set your batch size\n"
+    "📈 My Stats: view today's activity\n\n"
+    f"📌 Current setting: {context.user_data['count']} number(s)",
+    reply_markup=MAIN_KEYBOARD,
+)
+
+=============================
+
+GET NUMBER
+
+=============================
+
+async def handle_get_number(update: Update, context: ContextTypes.DEFAULT_TYPE): msg = await update.message.reply_text("🔄 Fetching numbers...")
+
+rows = await asyncio.to_thread(fetch_numbers_from_ivas)
+
+if not rows:
+    await msg.edit_text("❌ Failed to get numbers. Please try again.")
+    return
+
+# save all rows
+context.user_data["all_rows"] = rows
+
+countries = extract_countries(rows)
+
+if not countries:
+    await msg.edit_text("❌ No countries found.")
+    return
+
+keyboard = build_country_keyboard(countries)
+
+await msg.edit_text(
+    "📱 WHATSAPP - Select Country:",
+    reply_markup=keyboard,
+)
+
+=============================
+
+COUNTRY SELECT
+
+=============================
+
+async def handle_country(update: Update, context: ContextTypes.DEFAULT_TYPE): text = update.message.text
+
+if text == "🔙 Back":
+    await start(update, context)
+    return
+
+rows = context.user_data.get("all_rows", [])
+count = context.user_data.get("count", 2)
+
+# filter by country
+filtered = [r for r in rows if r["country"] == text]
+
+if not filtered:
+    await update.message.reply_text("❌ No numbers for this country.")
+    return
+
+selected = filtered[:count]
+
+keyboard = []
+for item in selected:
+    keyboard.append([KeyboardButton(f"📱 +{item['number']}")])
+
+keyboard.append([KeyboardButton("🔄 Next Number")])
+keyboard.append([KeyboardButton("🔙 Back")])
+
+await update.message.reply_text(
+    f"Country: {text}\nService: WhatsApp\nWaiting for OTP... ⏳",
+    reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+)
+
+=============================
+
+NUMBER COUNT
+
+=============================
+
+async def handle_count(update: Update, context: ContextTypes.DEFAULT_TYPE): await update.message.reply_text("Send number count (e.g., 2, 5, 10)") context.user_data["awaiting_count"] = True
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE): text = update.message.text
+
+# count setter
+if context.user_data.get("awaiting_count"):
+    if text.isdigit():
+        context.user_data["count"] = int(text)
+        context.user_data["awaiting_count"] = False
+
+        await update.message.reply_text(
+            f"✅ Number count set to {text}", reply_markup=MAIN_KEYBOARD
+        )
         return
 
-    bot.answer_callback_query(call.id, "Checking OTP...")
+# route buttons
+if text == "🚀 Get Number":
+    await handle_get_number(update, context)
+elif text == "⚙️ Number Count":
+    await handle_count(update, context)
+elif text == "📈 My Stats":
+    await update.message.reply_text("📊 Stats coming soon...")
+else:
+    # maybe country click
+    await handle_country(update, context)
 
-    session = data.get("session")
-    number = data.get("number")
+=============================
 
-    otp = fetch_otp(session, number)
-    if otp:
-        bot.send_message(call.message.chat.id, f"✅ OTP FOUND\n\n{otp}")
-    else:
-        bot.send_message(call.message.chat.id, "⏳ OTP not received yet")
+MAIN
 
-# ================= START =================
-print(">> IVAS HTTP BOT STARTED")
-bot.infinity_polling(skip_pending=True)
+=============================
+
+def main(): print(">> IVAS HTTP BOT STARTED")
+
+app = Application.builder().token(BOT_TOKEN).build()
+
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+
+app.run_polling()
+
+if name == "main": main()
