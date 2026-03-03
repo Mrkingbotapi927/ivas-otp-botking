@@ -1,20 +1,10 @@
-=========================================
+import re
+import requests
+from urllib.parse import urljoin
+import telebot
+from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 
-IVAS Dynamic OTP Bot (Auto Country)
-
-=========================================
-
-Features:
-
-- Auto fetch numbers from IVAS panel
-
-- Dynamic country keyboard
-
-- Clean country names
-
-- Works on Railway
-
-=========================================
+# ================= CONFIG =================
 
 import os import re import asyncio import requests from collections import defaultdict
 
@@ -22,11 +12,11 @@ from telegram import ReplyKeyboardMarkup, KeyboardButton, Update from telegram.e
 
 BOT_TOKEN = os.getenv("8521079986:AAGBGaW21GlBOTTbvjnZSlp78_bvIVn5RTQ") IVAS_EMAIL = os.getenv("iamalisindhi1122@gmail.com") IVAS_PASSWORD = os.getenv("Shoaibali@123D..king")
 
-=============================
+# =============================
 
 Helpers
 
-=============================
+# =============================
 
 def clean_country(name: str) -> str: """Remove trailing numeric codes from IVAS country.""" if not name: return "" return re.sub(r"\s+\d+$", "", name).strip()
 
@@ -47,11 +37,11 @@ keyboard.append([KeyboardButton("🔙 Back")])
 
 return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-=============================
+# =============================
 
 IVAS FETCH (HTTP VERSION)
 
-=============================
+# =============================
 
 def fetch_numbers_from_ivas(): """ Replace URLs below with your real IVAS endpoints if different. This function returns list of: { country: str, number: str } """
 
@@ -97,11 +87,11 @@ except Exception as e:
     print("IVAS fetch error:", e)
     return []
 
-=============================
+# =============================
 
 Telegram Handlers
 
-=============================
+# =============================
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup( [ [KeyboardButton("🚀 Get Number")], [KeyboardButton("⚙️ Number Count"), KeyboardButton("📈 My Stats")], ], resize_keyboard=True, )
 
@@ -116,11 +106,11 @@ await update.message.reply_text(
     reply_markup=MAIN_KEYBOARD,
 )
 
-=============================
+# =============================
 
 GET NUMBER
 
-=============================
+# =============================
 
 async def handle_get_number(update: Update, context: ContextTypes.DEFAULT_TYPE): msg = await update.message.reply_text("🔄 Fetching numbers...")
 
@@ -146,11 +136,11 @@ await msg.edit_text(
     reply_markup=keyboard,
 )
 
-=============================
+# =============================
 
 COUNTRY SELECT
 
-=============================
+# =============================
 
 async def handle_country(update: Update, context: ContextTypes.DEFAULT_TYPE): text = update.message.text
 
@@ -182,11 +172,11 @@ await update.message.reply_text(
     reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
 )
 
-=============================
+# =============================
 
 NUMBER COUNT
 
-=============================
+# =============================
 
 async def handle_count(update: Update, context: ContextTypes.DEFAULT_TYPE): await update.message.reply_text("Send number count (e.g., 2, 5, 10)") context.user_data["awaiting_count"] = True
 
@@ -214,11 +204,11 @@ else:
     # maybe country click
     await handle_country(update, context)
 
-=============================
+# =============================
 
 MAIN
 
-=============================
+# =============================
 
 def main(): print(">> IVAS HTTP BOT STARTED")
 
