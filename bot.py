@@ -124,9 +124,20 @@ def fetch_numbers_from_ivas():
 
 
 # =============================
+# Imports (FINAL CLEAN)
+# =============================
+from telegram import ReplyKeyboardMarkup, KeyboardButton, Update
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
+
+# =============================
 # Telegram UI
 # =============================
-
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
         [KeyboardButton("🚀 Get Number")],
