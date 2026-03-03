@@ -79,6 +79,7 @@ def main_menu():
 def start(msg):
     bot.send_message(msg.chat.id, "✨ OTP Dashboard Ready", reply_markup=main_menu())
 
+# ================= GET NUMBER =================
 @bot.message_handler(func=lambda m: m.text == "🚀 Get Number")
 def get_number(msg):
     bot.send_message(msg.chat.id, "🔄 Fetching numbers...")
@@ -88,15 +89,17 @@ def get_number(msg):
         bot.send_message(msg.chat.id, "❌ Login failed")
         return
 
-    numbers = fetch_numbers(session)  # ✅ yahan define hota hai
+    numbers = fetch_numbers(session)
 
     if not numbers:
         bot.send_message(msg.chat.id, "❌ No active numbers found")
         return
 
+    # ✅ only 2 numbers show
+    numbers = numbers[:2]
+
     user_sessions[msg.chat.id] = {"session": session}
 
-    # ✅ keyboard yahin banana hai (andar hi)
     kb = InlineKeyboardMarkup(row_width=2)
 
     buttons = []
@@ -110,6 +113,7 @@ def get_number(msg):
 
     kb.add(*buttons)
 
+    # bottom buttons
     kb.add(
         InlineKeyboardButton("📩 GET OTP", callback_data="getotp_menu")
     )
@@ -123,7 +127,7 @@ def get_number(msg):
         "📱 Select Number",
         reply_markup=kb
     )
-  )
+    
 
 # add number buttons
 kb.add(*buttons)
@@ -137,6 +141,7 @@ kb.add(
     InlineKeyboardButton("🔄 Refresh Numbers", callback_data="refresh_nums")
 )
 
+# ================= REFRESH =================
 @bot.callback_query_handler(func=lambda c: c.data == "refresh_nums")
 def refresh_numbers_cb(call):
     bot.answer_callback_query(call.id, "Refreshing...")
@@ -152,6 +157,9 @@ def refresh_numbers_cb(call):
     if not numbers:
         bot.send_message(msg.chat.id, "❌ No AVAILABLE RANGE")
         return
+
+    # ✅ again only 2 numbers
+    numbers = numbers[:2]
 
     user_sessions[msg.chat.id] = {"session": session}
 
@@ -177,3 +185,4 @@ def refresh_numbers_cb(call):
 # ================= START =================
 print(">> IVAS HTTP BOT STARTED")
 bot.infinity_polling(skip_pending=True)
+                              
