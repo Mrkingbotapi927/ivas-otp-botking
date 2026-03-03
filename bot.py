@@ -38,241 +38,94 @@ def get_panel_session():
     except Exception as e:
         print("Login error:", e)
         return None
-# =============================
-# Helpers
-# =============================
 
-def clean_country(name: str) -> str:
-    """Remove trailing numeric codes from IVAS country."""
-    if not name:
-        return ""
-    return re.sub(r"\s+\d+$", "", name).strip()
-
-
-def extract_countries(rows):
-    countries = set()
-    for r in rows:
-        c = r.get("country", "").strip()
-        if c:
-            countries.add(c)
-    return sorted(list(countries))
-
-
-def build_country_keyboard(countries):
-    keyboard = []
-    row = []
-
-    for c in countries:
-        row.append(KeyboardButton(c))
-        if len(row) == 2:
-            keyboard.append(row)
-            row = []
-
-    if row:
-        keyboard.append(row)
-
-    keyboard.append([KeyboardButton("🔙 Back")])
-
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-
-# =============================
-# IVAS FETCH (HTTP VERSION)
-# =============================
-
-def fetch_numbers_from_ivas():
-    """
-    Returns list of:
-    { country: str, number: str }
-    """
+# ================= FETCH NUMBERS =================
+def fetch_numbers(session):
     try:
-        session = requests.Session()
-
-        # -------- LOGIN --------
-        login_url = "https://ivas.tempnum.qzz.io/login"
-        session.post(
-            login_url,
-            data={"email": IVAS_EMAIL, "password": IVAS_PASSWORD},
-            timeout=30,
-        )
-
-        # -------- FETCH NUMBERS --------
-        numbers_url = "https://ivas.tempnum.qzz.io/test-system"
-        resp = session.get(numbers_url, timeout=30)
-        html = resp.text
-
-        pattern = re.compile(
-            r"<tr>.*?<td>(.*?)</td>.*?<td>(\d+)</td>",
-            re.S,
-        )
-
-        rows = []
-        for raw_country, number in pattern.findall(html):
-            country = clean_country(raw_country)
-            rows.append(
-                {
-                    "country": country,
-                    "number": number,
-                }
-            )
-
-        return rows
-
+        url = urljoin(IVAS_URL, "/portal/numbers")
+        r = session.get(url, timeout=30)
+        nums = re.findall(r"\+?\d{6,15}", r.text)
+        return list(dict.fromkeys(nums))
     except Exception as e:
-        print("IVAS fetch error:", e)
+        print("Fetch numbers error:", e)
         return []
 
+# ================= FETCH OTP =================
+def fetch_otp(session, number):
+    try:
+        url = urljoin(IVAS_URL, "/portal/sms/received")
+        r = session.get(url, timeout=30)
+        if number in r.text:
+            return r.text[:1000]
+    except Exception as e:
+        print("OTP fetch error:", e)
+    return None
 
-# =============================
-# Imports (FINAL CLEAN)
-# =============================
-from telegram import ReplyKeyboardMarkup, KeyboardButton, Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
+# ================= UI =================
+def main_menu():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("🚀 Get Number")
+    return kb
 
-# =============================
-# Telegram UI
-# =============================
-MAIN_KEYBOARD = ReplyKeyboardMarkup(
-    [
-        [KeyboardButton("🚀 Get Number")],
-        [KeyboardButton("⚙️ Number Count"), KeyboardButton("📈 My Stats")],
-    ],
-    resize_keyboard=True,
-)
+@bot.message_handler(commands=["start"])
+def start(msg):
+    bot.send_message(msg.chat.id, "✨ OTP Dashboard Ready", reply_markup=main_menu())
 
+@bot.message_handler(func=lambda m: m.text == "🚀 Get Number")
+def get_number(msg):
+    bot.send_message(msg.chat.id, "🔄 Fetching numbers...")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["count"] = context.user_data.get("count", 2)
+    session = get_panel_session()
+    if not session:
+        bot.send_message(msg.chat.id, "❌ Login failed")
+        return
 
-    await update.message.reply_text(
-        "✨ OTP Dashboard is ready\n"
-        "🚀 Get Number: fetch fresh numbers\n"
-        "⚙️ Number Count: set your batch size\n"
-        "📈 My Stats: view today's activity\n\n"
-        f"📌 Current setting: {context.user_data['count']} number(s)",
-        reply_markup=MAIN_KEYBOARD,
+    numbers = fetch_numbers(session)
+    if not numbers:
+        bot.send_message(msg.chat.id, "❌ No active numbers found")
+        return
+
+    user_sessions[msg.chat.id] = {"session": session}
+
+    kb = InlineKeyboardMarkup()
+    for n in numbers[:12]:
+        kb.add(InlineKeyboardButton(n, callback_data=f"num|{n}"))
+
+    bot.send_message(msg.chat.id, "📱 Select Number", reply_markup=kb)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("num|"))
+def select_number(call):
+    number = call.data.split("|")[1]
+    user_sessions.setdefault(call.message.chat.id, {})["number"] = number
+
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton("📩 GET OTP CODE", callback_data="getotp"))
+
+    bot.edit_message_text(
+        f"✅ Selected: <code>{number}</code>",
+        call.message.chat.id,
+        call.message.message_id,
+        reply_markup=kb
     )
 
-
-# =============================
-# GET NUMBER
-# =============================
-
-async def handle_get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = await update.message.reply_text("🔄 Fetching numbers...")
-
-    rows = await asyncio.to_thread(fetch_numbers_from_ivas)
-
-    if not rows:
-        await msg.edit_text("❌ Failed to get numbers. Please try again.")
+@bot.callback_query_handler(func=lambda c: c.data == "getotp")
+def get_otp(call):
+    data = user_sessions.get(call.message.chat.id)
+    if not data:
+        bot.answer_callback_query(call.id, "No session")
         return
 
-    context.user_data["all_rows"] = rows
+    bot.answer_callback_query(call.id, "Checking OTP...")
 
-    countries = extract_countries(rows)
+    session = data.get("session")
+    number = data.get("number")
 
-    if not countries:
-        await msg.edit_text("❌ No countries found.")
-        return
-
-    keyboard = build_country_keyboard(countries)
-
-    await msg.edit_text(
-        "📱 WHATSAPP - Select Country:",
-        reply_markup=keyboard,
-    )
-
-
-# =============================
-# COUNTRY SELECT
-# =============================
-
-async def handle_country(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-
-    if text == "🔙 Back":
-        await start(update, context)
-        return
-
-    rows = context.user_data.get("all_rows", [])
-    count = context.user_data.get("count", 2)
-
-    filtered = [r for r in rows if r["country"] == text]
-
-    if not filtered:
-        await update.message.reply_text("❌ No numbers for this country.")
-        return
-
-    selected = filtered[:count]
-
-    keyboard = []
-    for item in selected:
-        keyboard.append([KeyboardButton(f"📱 +{item['number']}")])
-
-    keyboard.append([KeyboardButton("🔄 Next Number")])
-    keyboard.append([KeyboardButton("🔙 Back")])
-
-    await update.message.reply_text(
-        f"Country: {text}\nService: WhatsApp\nWaiting for OTP... ⏳",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
-    )
-
-
-# =============================
-# NUMBER COUNT
-# =============================
-
-async def handle_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Send number count (e.g., 2, 5, 10)")
-    context.user_data["awaiting_count"] = True
-
-
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-
-    # count setter
-    if context.user_data.get("awaiting_count"):
-        if text.isdigit():
-            context.user_data["count"] = int(text)
-            context.user_data["awaiting_count"] = False
-
-            await update.message.reply_text(
-                f"✅ Number count set to {text}",
-                reply_markup=MAIN_KEYBOARD,
-            )
-            return
-
-    # route buttons
-    if text == "🚀 Get Number":
-        await handle_get_number(update, context)
-    elif text == "⚙️ Number Count":
-        await handle_count(update, context)
-    elif text == "📈 My Stats":
-        await update.message.reply_text("📊 Stats coming soon...")
+    otp = fetch_otp(session, number)
+    if otp:
+        bot.send_message(call.message.chat.id, f"✅ OTP FOUND\n\n{otp}")
     else:
-        await handle_country(update, context)
+        bot.send_message(call.message.chat.id, "⏳ OTP not received yet")
 
-
-# =============================
-# MAIN
-# =============================
-
-def main():
-    print(">> IVAS HTTP BOT STARTED")
-
-    app = Application.builder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-
-    app.run_polling()
-
-
-if __name__ == "__main__":
-    main()
+# ================= START =================
+print(">> IVAS HTTP BOT STARTED")
+bot.infinity_polling(skip_pending=True)
