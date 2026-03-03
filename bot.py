@@ -81,31 +81,49 @@ def start(msg):
 
 @bot.message_handler(func=lambda m: m.text == "🚀 Get Number")
 def get_number(msg):
-    bot.send_message(msg.chat.id, "AVAILABLE RANGE ...")
+    bot.send_message(msg.chat.id, "🔄 Fetching numbers...")
 
     session = get_panel_session()
     if not session:
         bot.send_message(msg.chat.id, "❌ Login failed")
         return
 
-    numbers = fetch_numbers(session)
+    numbers = fetch_numbers(session)  # ✅ yahan define hota hai
+
     if not numbers:
-        bot.send_message(msg.chat.id, "❌ No AVAILABLE RANGE")
+        bot.send_message(msg.chat.id, "❌ No active numbers found")
         return
 
     user_sessions[msg.chat.id] = {"session": session}
 
+    # ✅ keyboard yahin banana hai (andar hi)
     kb = InlineKeyboardMarkup(row_width=2)
 
-buttons = []
-
-for n in numbers:  # already limited to 200
-    buttons.append(
-        InlineKeyboardButton(
-            f"📋 {n}",
-            callback_data=f"copy|{n}"
+    buttons = []
+    for n in numbers:
+        buttons.append(
+            InlineKeyboardButton(
+                f"📋 {n}",
+                callback_data=f"copy|{n}"
+            )
         )
+
+    kb.add(*buttons)
+
+    kb.add(
+        InlineKeyboardButton("📩 GET OTP", callback_data="getotp_menu")
     )
+
+    kb.add(
+        InlineKeyboardButton("🔄 Refresh Numbers", callback_data="refresh_nums")
+    )
+
+    bot.send_message(
+        msg.chat.id,
+        "📱 Select Number",
+        reply_markup=kb
+    )
+  )
 
 # add number buttons
 kb.add(*buttons)
