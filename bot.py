@@ -81,7 +81,8 @@ def start(msg):
 
 @bot.message_handler(func=lambda m: m.text == "🚀 Get Number")
 def get_number(msg):
-    bot.send_message(msg.chat.id, "check ✅ numbers...")
+    ...
+    bot.send_message(msg.chat.id, "📱 Select Number", reply_markup=kb)
 
     session = get_panel_session()
     if not session:
