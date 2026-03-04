@@ -14,12 +14,11 @@ IVAS_PASSWORD = "Shoaibali@123D..king"
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
 
-# Global
 shared_session = None
 target_group_id = None
 owner_chat_id = None
 
-# Country code → name + flag (sirf common OTP wale + tumhare panel ke)
+# Country code → name + flag (sirf common + tumhare panel ke)
 COUNTRY_CODES = {
     "92":  ("Pakistan",      "🇵🇰"),
     "225": ("Ivory Coast",   "🇨🇮"),
@@ -33,11 +32,6 @@ COUNTRY_CODES = {
     "44":  ("United Kingdom","🇬🇧"),
     "91":  ("India",         "🇮🇳"),
     "880": ("Bangladesh",    "🇧🇩"),
-    "62":  ("Indonesia",     "🇮🇩"),
-    "63":  ("Philippines",   "🇵🇭"),
-    "66":  ("Thailand",      "🇹🇭"),
-    "84":  ("Vietnam",       "🇻🇳"),
-    "60":  ("Malaysia",      "🇲🇾"),
 }
 
 # ================= SESSION =================
@@ -56,18 +50,20 @@ def get_panel_session(force_new=False):
         r = session.get(login_url, timeout=30)
         m = re.search(r'name="_token" value="([^"]+)"', r.text)
         if not m:
+            print("CSRF not found")
             return None
         token = m.group(1)
 
         payload = {"_token": token, "email": IVAS_EMAIL, "password": IVAS_PASSWORD}
         session.post(login_url, data=payload, timeout=30)
         shared_session = session
+        print("Login successful")
         return session
     except Exception as e:
         print("Login error:", e)
         return None
 
-# ================= FETCH ALL NUMBERS FROM MY NUMBERS PAGE =================
+# ================= FETCH NUMBERS FROM MY NUMBERS =================
 def fetch_all_numbers(session):
     try:
         r = session.get(urljoin(IVAS_URL, "/my-numbers"), timeout=20)
@@ -75,15 +71,15 @@ def fetch_all_numbers(session):
             r = session.get(urljoin(IVAS_URL, "/client/my-numbers"), timeout=20)
         text = r.text
 
-        # 10-15 digit numbers (with or without +)
-        nums = re.findall(r'(?:\+)?(\d{10,15})', text)
-        nums = list(dict.fromkeys(nums))  # unique
-        return nums[:100]  # limit
+        # Extract 10-15 digit numbers (923... style)
+        nums = re.findall(r'(?:\+)?92\d{9,10}|\d{10,12}', text)
+        nums = list(dict.fromkeys(nums))
+        return nums
     except Exception as e:
         print("Fetch error:", e)
         return []
 
-# ================= GROUP NUMBERS BY COUNTRY (only added ones) =================
+# ================= GROUP BY COUNTRY (only matched) =================
 def group_numbers_by_country(numbers):
     groups = {}
     for num in numbers:
@@ -96,11 +92,7 @@ def group_numbers_by_country(numbers):
                 groups[country].append(num if num.startswith('+') else '+' + num)
                 matched = True
                 break
-        if not matched:
-            # Agar koi unknown country code ho to "Other" mein daal do
-            if "Other" not in groups:
-                groups["Other"] = []
-            groups["Other"].append(num if num.startswith('+') else '+' + num)
+        # Agar match nahi kiya to ignore kar do (Other mat dikhao)
     return groups
 
 # ================= MAIN MENU =================
@@ -132,7 +124,7 @@ def get_countries_handler(msg):
 
     groups = group_numbers_by_country(numbers)
     if not groups:
-        bot.send_message(msg.chat.id, "❌ Koi country match nahi mila (new country code add karna padega)")
+        bot.send_message(msg.chat.id, "❌ Koi country match nahi mila (numbers ka code check karo)")
         return
 
     kb = InlineKeyboardMarkup(row_width=2)
@@ -142,7 +134,7 @@ def get_countries_handler(msg):
 
     bot.send_message(msg.chat.id, "🌍 Select Country (Sirf panel mein added)", reply_markup=kb)
 
-# ================= COUNTRY CLICK → SHOW NUMBERS + COPY =================
+# ================= COUNTRY → SHOW NUMBERS + COPY =================
 @bot.callback_query_handler(func=lambda c: c.data.startswith("country|"))
 def show_numbers_handler(call):
     country = call.data.split("|")[1]
@@ -160,7 +152,7 @@ def show_numbers_handler(call):
     flag = next((f for c, f in COUNTRY_CODES.values() if c == country), "🌍")
 
     kb = InlineKeyboardMarkup(row_width=1)
-    for num in country_nums[:8]:  # max 8 dikha rahe hain
+    for num in country_nums[:8]:
         kb.add(InlineKeyboardButton(f"📱 {num}", callback_data=f"copy|{num}"))
 
     if len(country_nums) > 8:
@@ -178,9 +170,9 @@ def silent_copy_handler(call):
     bot.answer_callback_query(call.id, "Copied!", show_alert=False)
     # Koi message nahi bhejna
 
-# ================= MORE NUMBERS =================
+# ================= MORE =================
 @bot.callback_query_handler(func=lambda c: c.data.startswith("more|"))
-def more_numbers_handler(call):
+def more_handler(call):
     country = call.data.split("|")[1]
     show_numbers_handler(call)
 
@@ -189,9 +181,9 @@ def back_handler(call):
     bot.answer_callback_query(call.id, "Back...")
     bot.send_message(call.message.chat.id, "Main menu", reply_markup=main_menu())
 
-# ================= SET OTP GROUP =================
+# ================= SET GROUP =================
 @bot.message_handler(func=lambda m: m.text == "📍 Set OTP Group")
-def set_otp_group(msg):
+def set_group(msg):
     global target_group_id
     target_group_id = msg.chat.id
     bot.send_message(msg.chat.id, f"✅ OTP Group Set!\nGroup ID: {target_group_id}")
@@ -199,7 +191,7 @@ def set_otp_group(msg):
 # ================= REFRESH =================
 @bot.message_handler(func=lambda m: m.text == "🔄 Refresh Panel")
 def refresh_panel(msg):
-    bot.send_message(msg.chat.id, "🔄 Panel se latest numbers le rahe hain...")
+    bot.send_message(msg.chat.id, "🔄 Panel se fresh data...")
     get_countries_handler(msg)
 
 # ================= OTP POLLER =================
@@ -209,11 +201,9 @@ def otp_poller():
         time.sleep(10)
         if not target_group_id or not owner_chat_id:
             continue
-
         session = get_panel_session()
         if not session:
             continue
-
         try:
             r = session.get(urljoin(IVAS_URL, "/sms-test-history"), timeout=15)
             text = r.text
@@ -228,8 +218,8 @@ def otp_poller():
 
 # ================= START =================
 if __name__ == "__main__":
-    print(">> ALI SINDHI iVAS BOT STARTED ✅")
-    print(">> Sirf panel mein add kiye countries dikhege")
+    print(">> ALI SINDHI BOT STARTED ✅")
+    print(">> Sirf panel mein add kiye countries dikhege (no Other)")
 
     threading.Thread(target=otp_poller, daemon=True).start()
     bot.infinity_polling(skip_pending=True)
