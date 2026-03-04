@@ -51,8 +51,8 @@ def fetch_numbers(session):
         # remove duplicates
         nums = list(dict.fromkeys(nums))
 
-        # ✅ LIMIT 200
-        return nums[:200]
+        # ✅ LIMIT 2
+        return nums[:2]
 
     except Exception as e:
         print("Fetch numbers error:", e)
@@ -61,7 +61,7 @@ def fetch_numbers(session):
 # ================= FETCH OTP =================
 def fetch_otp(session, number):
     try:
-        url = urljoin(IVAS_URL, "/portal/sms/received")
+        url = urljoin(IVAS_URL, "/portal/sms/received/getsms")
         r = session.get(url, timeout=30)
         if number in r.text:
             return r.text[:1000]
@@ -77,12 +77,11 @@ def main_menu():
 
 @bot.message_handler(commands=["start"])
 def start(msg):
-    bot.send_message(msg.chat.id, "✨ OTP Dashboard Ready", reply_markup=main_menu())
+    bot.send_message(msg.chat.id, "WELCOME BACK IN ALI SINDHI 👿 BEST NUMBERS BOT", reply_markup=main_menu())
 
-# ================= GET NUMBER =================
 @bot.message_handler(func=lambda m: m.text == "🚀 Get Number")
 def get_number(msg):
-    bot.send_message(msg.chat.id, "🔄 Fetching numbers...")
+    bot.send_message(msg.chat.id, "check ✅ numbers...")
 
     session = get_panel_session()
     if not session:
@@ -90,44 +89,23 @@ def get_number(msg):
         return
 
     numbers = fetch_numbers(session)
-
     if not numbers:
-        bot.send_message(msg.chat.id, "❌ No active numbers found")
+        bot.send_message(msg.chat.id, "❌ No available new Range")
         return
-
-    # ✅ only 2 numbers show
-    numbers = numbers[:2]
 
     user_sessions[msg.chat.id] = {"session": session}
 
     kb = InlineKeyboardMarkup(row_width=2)
 
-    buttons = []
-    for n in numbers:
-        buttons.append(
-            InlineKeyboardButton(
-                f"📋 {n}",
-                callback_data=f"copy|{n}"
-            )
+buttons = []
+
+for n in numbers:  # ✅ again only 2 numbers
+    buttons.append(
+        InlineKeyboardButton(
+            f"📋 {n}",
+            callback_data=f"copy|{n}"
         )
-
-    kb.add(*buttons)
-
-    # bottom buttons
-    kb.add(
-        InlineKeyboardButton("📩 GET OTP", callback_data="getotp_menu")
     )
-
-    kb.add(
-        InlineKeyboardButton("🔄 Refresh Numbers", callback_data="refresh_nums")
-    )
-
-    bot.send_message(
-        msg.chat.id,
-        "📱 Select Number",
-        reply_markup=kb
-    )
-    
 
 # add number buttons
 kb.add(*buttons)
@@ -141,7 +119,31 @@ kb.add(
     InlineKeyboardButton("🔄 Refresh Numbers", callback_data="refresh_nums")
 )
 
-# ================= REFRESH =================
+    bot.send_message(msg.chat.id, "📱 Select Number", reply_markup=kb)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("copy|"))
+def copy_number(call):
+    number = call.data.split("|")[1]
+
+    user_sessions.setdefault(call.message.chat.id, {})["number"] = number
+
+    bot.answer_callback_query(
+        call.id,
+        f"Copied: {number}",
+        show_alert=False
+    )
+
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton("📩 GET OTP CODE", callback_data="getotp"))
+    kb.add(InlineKeyboardButton("🔄 Refresh Numbers", callback_data="refresh_nums"))
+
+    bot.edit_message_text(
+        f"✅ Selected: <code>{number}</code>",
+        call.message.chat.id,
+        call.message.message_id,
+        reply_markup=kb
+    )
+
 @bot.callback_query_handler(func=lambda c: c.data == "refresh_nums")
 def refresh_numbers_cb(call):
     bot.answer_callback_query(call.id, "Refreshing...")
@@ -155,11 +157,8 @@ def refresh_numbers_cb(call):
 
     numbers = fetch_numbers(session)
     if not numbers:
-        bot.send_message(msg.chat.id, "❌ No AVAILABLE RANGE")
+        bot.send_message(msg.chat.id, "❌ No available new Range")
         return
-
-    # ✅ again only 2 numbers
-    numbers = numbers[:2]
 
     user_sessions[msg.chat.id] = {"session": session}
 
@@ -185,4 +184,3 @@ def refresh_numbers_cb(call):
 # ================= START =================
 print(">> IVAS HTTP BOT STARTED")
 bot.infinity_polling(skip_pending=True)
-                              
